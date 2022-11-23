@@ -22,6 +22,7 @@ import re
 import html
 import json
 from itertools import zip_longest
+from typing import Dict
 from urllib.parse import quote as urlencode
 from html.entities import name2codepoint
 import logging
@@ -82,7 +83,6 @@ def clean(extractor, text, expand_templates=False, html_safe=True):
     if expand_templates:
         # expand templates
         # See: http://www.mediawiki.org/wiki/Help:Templates
-        pdb.set_trace()         # DEBUG
         text = extractor.expandTemplates(text)
     else:
         # Drop transclusions (template, parser functions)
@@ -277,6 +277,7 @@ def compact(text, mark_headers=False):
             if Extractor.keepSections:
                 items = sorted(headers.items())
                 for (i, v) in items:
+                    v = f"SECTION_START:::{v}:::SECTION_END"
                     page.append(v)
             headers.clear()
             page.append(line)  # first line
@@ -426,7 +427,8 @@ def replaceExternalLinks(text):
 def makeExternalLink(url, anchor):
     """Function applied to wikiLinks"""
     if Extractor.keepLinks:
-        return '<a href="%s">%s</a>' % (urlencode(url), anchor)
+        url = urlencode(url)
+        return '<a href="%s">%s</a>' % (url, anchor)
     else:
         return anchor
 
@@ -911,6 +913,10 @@ class Extractor():
     """
     ##
     # Whether to preserve links in output
+    keepAnchors = True
+
+    ##
+    # Whether to preserve links in output
     keepLinks = False
 
     ##
@@ -944,6 +950,7 @@ class Extractor():
         self.recursion_exceeded_2_errs = 0  # template recursion within expandTemplate()
         self.recursion_exceeded_3_errs = 0  # parameter recursion
         self.template_title_errs = 0
+        # self.url_to_id = url_to_id
 
     def clean_text(self, text, mark_headers=False, expand_templates=True,
                    html_safe=True):
@@ -977,11 +984,12 @@ class Extractor():
 
         if self.to_json:
             json_data = {
-		'id': self.id,
+		        'id': self.id,
                 'revid': self.revid,
                 'url': self.url,
                 'title': self.title,
-                'text': "\n".join(text)
+                'text': "\n".join(text),
+                'anchors': "TODO: add anchors"
             }
             out_str = json.dumps(json_data)
             out.write(out_str)

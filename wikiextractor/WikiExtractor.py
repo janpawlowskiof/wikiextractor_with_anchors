@@ -551,6 +551,8 @@ def main():
                         help="produce HTML output, subsumes --links")
     groupP.add_argument("-l", "--links", action="store_true",
                         help="preserve links")
+    groupP.add_argument("--anchors", action="store_true", help="preserve anchors")
+    groupP.add_argument("--sections", action="store_true", help="preserve sections")
     groupP.add_argument("-ns", "--namespaces", default="", metavar="ns1,ns2",
                         help="accepted namespaces")
     groupP.add_argument("--templates",
@@ -576,7 +578,9 @@ def main():
 
     args = parser.parse_args()
 
+    Extractor.keepAnchors = args.anchors
     Extractor.keepLinks = args.links
+    Extractor.keepSections = args.sections
     Extractor.HtmlFormatting = args.html
     if args.html:
         Extractor.keepLinks = True
