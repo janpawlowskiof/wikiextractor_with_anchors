@@ -55,15 +55,20 @@ collecting template definitions.
 
 import argparse
 import bz2
+from copy import deepcopy
 import logging
 import os.path
+from pathlib import Path
+import pickle
 import re  # TODO use regex when it will be standard
 import sys
 from io import StringIO
 from multiprocessing import Queue, get_context, cpu_count
 from timeit import default_timer
+from typing import Dict
+from tqdm import tqdm
 
-from .extract import Extractor, ignoreTag, define_template, acceptedNamespaces
+from .extract import Extractor, get_url, ignoreTag, define_template, acceptedNamespaces
 
 # ===========================================================================
 
@@ -375,6 +380,15 @@ def process_dump(input_file, template_file, out_file, file_size, file_compress,
         elif tag == '/siteinfo':
             break
 
+    title_to_id_map_cache_path = Path("title_to_id_map.pickle")
+    if title_to_id_map_cache_path.exists():
+        with title_to_id_map_cache_path.open("rb") as f:
+            Extractor.titleToIdMap = pickle.load(f)
+    else:
+        with title_to_id_map_cache_path.open("wb") as f:
+            Extractor.titleToIdMap = get_title_to_id_map(decode_open(input_file))
+            pickle.dump(Extractor.titleToIdMap, f)
+
     if expand_templates:
         # preprocess
         template_load_start = default_timer()
@@ -466,6 +480,13 @@ def process_dump(input_file, template_file, out_file, file_size, file_compress,
     logging.info("Finished %d-process extraction of %d articles in %.1fs (%.1f art/s)",
                  process_count, ordinal, extract_duration, extract_rate)
 
+
+def get_title_to_id_map(input) -> Dict[str, str]:
+    result = {}
+    for id, revid, title, page in tqdm(collect_pages(input), desc="Building url to id map"):
+        title = title.lower()
+        result[title] = id
+    return result
 
 # ----------------------------------------------------------------------
 # Multiprocess support

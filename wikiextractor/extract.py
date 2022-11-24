@@ -22,12 +22,14 @@ import re
 import html
 import json
 from itertools import zip_longest
-from typing import Dict
+from typing import Dict, List
 from urllib.parse import quote as urlencode
 from html.entities import name2codepoint
 import logging
 import time
-import pdb                      # DEBUG
+import pdb
+
+from wikiextractor.anchors_extractor import AnchorExtractor                      # DEBUG
 
 # ----------------------------------------------------------------------
 
@@ -218,7 +220,7 @@ def compact(text, mark_headers=False):
                 title += '.'
 
             if mark_headers:
-                title = "## " + title
+                title = f"Section::::<{lev}>::::{title}"
 
             headers[lev] = title
             # drop previous headers
@@ -277,7 +279,6 @@ def compact(text, mark_headers=False):
             if Extractor.keepSections:
                 items = sorted(headers.items())
                 for (i, v) in items:
-                    v = f"SECTION_START:::{v}:::SECTION_END"
                     page.append(v)
             headers.clear()
             page.append(line)  # first line
@@ -497,6 +498,13 @@ def makeInternalLink(title, label):
         colon2 = title.find(':', colon + 1)
         if colon2 > 1 and title[colon + 1:colon2] not in acceptedNamespaces:
             return ''
+    if Extractor.keepAnchors:
+        title = title.lower()
+        # page does not exist (red links on wikipedia)
+        if title not in Extractor.titleToIdMap:
+            return label
+        anchor_id = Extractor.titleToIdMap.get(title, -1)
+        return f'Anchor::::title={title};id={anchor_id};label={label};'
     if Extractor.keepLinks:
         return '<a href="%s">%s</a>' % (urlencode(title), label)
     else:
@@ -935,6 +943,8 @@ class Extractor():
     # Obtained from TemplateNamespace
     templatePrefix = ''
 
+    titleToIdMap = None
+
     def __init__(self, id, revid, urlbase, title, page):
         """
         :param page: a list of lines.
@@ -950,7 +960,6 @@ class Extractor():
         self.recursion_exceeded_2_errs = 0  # template recursion within expandTemplate()
         self.recursion_exceeded_3_errs = 0  # parameter recursion
         self.template_title_errs = 0
-        # self.url_to_id = url_to_id
 
     def clean_text(self, text, mark_headers=False, expand_templates=True,
                    html_safe=True):
@@ -980,7 +989,11 @@ class Extractor():
         """
         logging.debug("%s\t%s", self.id, self.title)
         text = ''.join(self.page)
-        text = self.clean_text(text, html_safe=html_safe)
+        text: List[str] = self.clean_text(text, html_safe=html_safe, mark_headers=self.keepSections)
+        
+        anchor_extractor = AnchorExtractor(paragraphs=text)
+        text = anchor_extractor.output_paragraphs
+        anchors = anchor_extractor.anchors
 
         if self.to_json:
             json_data = {
@@ -988,13 +1001,14 @@ class Extractor():
                 'revid': self.revid,
                 'url': self.url,
                 'title': self.title,
-                'text': "\n".join(text),
-                'anchors': "TODO: add anchors"
+                'text': text,
+                'anchors': anchors
             }
             out_str = json.dumps(json_data)
             out.write(out_str)
             out.write('\n')
         else:
+            raise RuntimeError("Output to doc is not really tested when generating anchors. Please use --json flag.")
             header = '<doc id="%s" url="%s" title="%s">\n' % (self.id, self.url, self.title)
             # Separate header from text with a newline.
             header += self.title + '\n\n'
